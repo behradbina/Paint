@@ -5,6 +5,9 @@ import { PointEvent, Tool } from "./interfaces/types";
 import { useDrawVariables } from "./helpers/useDrawVariables";
 import { useDrawShapes } from "./helpers/useDrawShapes";
 import Capitalize from "./utils/Capitalize";
+import JSZip from "jszip";
+import { saveAs } from "file-saver";
+
 
 function App() {
   const [tools, setTools] = useState<Tool[]>([]);
@@ -269,7 +272,7 @@ function App() {
             >
               Clear Canvas
             </button> */}
-            <button
+            {/* <button
               className="px-4 py-3 mt-2 rounded-lg bg-[#444] text-white"
               onClick={() => {
                 const blob = new Blob([JSON.stringify(actions, null, 2)], {
@@ -291,7 +294,31 @@ function App() {
               onClick={handleSave}
             >
               Save as Image
-            </button>
+            </button>*/ }
+            <button
+            className="px-4 py-3 mt-2 rounded-lg bg-[#764abc] text-white border-[#764abc] border-2 border-solid"
+            onClick={async () => {
+              if (!canvas.current) return;
+
+              const zip = new JSZip();
+
+              // Add image
+              const imageData = canvas.current.toDataURL("image/png");
+              const imgBase64 = imageData.split(",")[1]; // remove "data:image/png;base64,"
+              zip.file("drawing.png", imgBase64, { base64: true });
+
+              // Add metadata
+              const metadata = JSON.stringify(actions, null, 2);
+              zip.file("drawing_metadata.json", metadata);
+
+              // Generate and download
+              const content = await zip.generateAsync({ type: "blob" });
+              saveAs(content, `drawing_${Date.now()}.zip`);
+            }}
+          >
+            Download ZIP
+          </button>
+
           </div>
         </div>
         <div className="canvas-container w-[90%] h-[95%] bg-white shadow-lg mx-5 rounded-lg">
