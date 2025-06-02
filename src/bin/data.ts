@@ -32,7 +32,19 @@ export const tools = [
   }
 ]
 
-
-export const colorPlatte = ["#000", "#FF0000", "#00FF00", "#fff", "#0000FF", "#FFFF00", "#FF00FF", "#00FFFF", "#FFA500", "#FFC0CB", "#A52A2A", "#808080"]
-
+export const colorPlatte = [
+  "#FF0000", // Red
+  "#FFA500", // Orange
+  "#FFFF00", // Yellow
+  "#00FF00", // Green
+  "#00FFFF", // Cyan
+  "#0000FF", // Blue
+  "#A020F0", // Purple
+  "#FF00FF", // Magenta
+  "#FFC0CB", // Pink
+  "#A52A2A", // Brown
+  "#808080", // Gray
+  "#000",    // Black
+  "#fff"     // White
+]
 

@@ -233,7 +233,7 @@ function App() {
             <input
               type="range"
               min="1"
-              max="10"
+              max="100"
               value={range}
               className="range-slider"
               onChange={(e) => setRange(e.target.value)}
@@ -263,12 +263,12 @@ function App() {
             </ul>
           </div>
           <div className="mt-5">
-            <button
+            {/* <button
               className="px-4 py-3 rounded-lg bg-gray-200 border-gray-50 border-2 border-solid"
               onClick={onClearCanvas}
             >
               Clear Canvas
-            </button>
+            </button> */}
             <button
               className="px-4 py-3 mt-2 rounded-lg bg-[#444] text-white"
               onClick={() => {
