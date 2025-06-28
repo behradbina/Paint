@@ -23,11 +23,6 @@ i {
   height: 100%;
 }
 
-html, body, #root {
-  height: 100%;
-  width: 100%;
-  overflow: hidden;
-}
 
 /* ✅ Portrait-specific tweaks (for all screen sizes) */
 @media screen and (orientation: landscape) {
