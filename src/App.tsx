@@ -40,7 +40,7 @@ function App() {
     };
 
     if (orientation?.lock) {
-      orientation.lock('portrait').catch((err) =>
+      orientation.lock('landscape').catch((err) =>
         console.warn('Orientation lock failed:', err)
       );
     }
