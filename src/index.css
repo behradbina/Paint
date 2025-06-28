@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Base reset */
+/* Base reset and UI styling */
 * {
   margin: 0;
   padding: 0;
@@ -23,37 +23,42 @@ i {
   height: 100%;
 }
 
-html, body {
+html, body, #root {
   height: 100%;
   width: 100%;
   overflow: hidden;
 }
 
-#root {
-  height: 100%;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  transform-origin: center center;
-}
-
-/* ✅ No rotation needed for portrait */
+/* ✅ Portrait-specific tweaks (for all screen sizes) */
 @media screen and (orientation: portrait) {
-  #root {
-    transform: none;
+  body {
+    background-color: #fff;
   }
 }
 
-/* ✅ Rotate content to appear vertical in landscape mode on mobile devices */
+/* ✅ Landscape warning only for mobile devices (phones & small tablets) */
 @media screen and (orientation: landscape) and (max-height: 500px) {
-  #root {
-    transform: rotate(90deg);
-    transform-origin: center center;
-    width: 100vh;
-    height: 100vw;
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    translate: -50% -50%;
+  body::before {
+    content: "Please rotate your device to portrait mode.";
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: 100vw;
+    background-color: #111;
+    color: white;
+    font-size: 1.5rem;
+    font-weight: bold;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    text-align: center;
+    padding: 2rem;
+  }
+
+  /* Hide main content */
+  #root > * {
+    display: none;
   }
 }
