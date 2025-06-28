@@ -37,7 +37,7 @@ html, body, #root {
 }
 
 /* ✅ Landscape warning only for mobile devices (phones & small tablets) */
-@media screen and (orientation: portrait) and (max-height: 500px) {
+@media screen and (orientation: portrait){
   body::before {
     content: "Please rotate your device to landscape mode.";
     position: fixed;
