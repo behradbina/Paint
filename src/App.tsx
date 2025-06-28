@@ -24,6 +24,30 @@ function App() {
   const { canvas, ctx, snapShot } = useDrawVariables();
   const { drawCircle, drawLine, drawRectangle, drawEraser, drawTriangle } = useDrawShapes(ctx, color, startPoint, range);
 
+  type OrientationLockType =
+  | 'any'
+  | 'natural'
+  | 'landscape'
+  | 'landscape-primary'
+  | 'landscape-secondary'
+  | 'portrait'
+  | 'portrait-primary'
+  | 'portrait-secondary';
+
+  useEffect(() => {
+    const orientation = screen.orientation as ScreenOrientation & {
+      lock?: (orientation: OrientationLockType) => Promise<void>;
+    };
+
+    if (orientation?.lock) {
+      orientation.lock('portrait').catch((err) =>
+        console.warn('Orientation lock failed:', err)
+      );
+    }
+  }, []);  
+
+
+
   useEffect(() => {
     setTools(tool);
     setColorPlatte(colorsList);

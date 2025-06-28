@@ -2,25 +2,63 @@
 @tailwind components;
 @tailwind utilities;
 
-
+/* Base reset and UI styling */
 * {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
 .toolIcon svg path {
-    fill: #5a6168;
+  fill: #5a6168;
 }
 
 .toolIcon.active svg path {
-    fill: #764abc;
+  fill: #764abc;
 }
 
-
-
 i {
-    font-style: normal;
-    display: inline-block;
-    height: 100%;
+  font-style: normal;
+  display: inline-block;
+  height: 100%;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+/* ✅ Portrait-specific tweaks (for all screen sizes) */
+@media screen and (orientation: portrait) {
+  body {
+    background-color: #fff;
+  }
+}
+
+/* ✅ Landscape warning only for mobile devices (phones & small tablets) */
+@media screen and (orientation: landscape) and (max-height: 500px) {
+  body::before {
+    content: "Please rotate your device to portrait mode.";
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: 100vw;
+    background-color: #111;
+    color: white;
+    font-size: 1.5rem;
+    font-weight: bold;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    text-align: center;
+    padding: 2rem;
+  }
+
+  /* Hide main content */
+  #root > * {
+    display: none;
+  }
 }
