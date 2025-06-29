@@ -6,7 +6,7 @@ A simple paint application built with React, TypeScript, Tailwind CSS, and HTML5
 
 ## Demo
 
-You can try out the app live [here](https://ms-paint-app.vercel.app/).
+You can try out the app live [here](https://paint-zeta-seven.vercel.app/).
 
 ## Features
 
