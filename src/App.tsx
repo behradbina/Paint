@@ -225,12 +225,12 @@ function App() {
   return (
     <>
       <div className="h-screen bg-[#F5F5F5] flex items-center ">
-        <div className="toolbar w-[20%] py-4 px-5 h-full bg-white">
+        <div className="toolbar w-[20%] px-5 h-full bg-white">
           {/* <h2 className="text-[20px] font-semibold">Shapes</h2> */}
           <ul className="list-none mt-6">
             {tools.map((tool, index) => (
               <li
-                className="flex gap-4 my-4 group cursor-pointer items-center"
+                className="flex gap-4 my-2 group cursor-pointer items-center"
                 key={index}
                 onClick={() => onSelectTool(tool.name)}
               >
