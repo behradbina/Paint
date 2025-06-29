@@ -226,7 +226,7 @@ function App() {
     <>
       <div className="h-screen bg-[#F5F5F5] flex items-center ">
         <div className="toolbar w-[20%] py-4 px-5 h-full bg-white">
-          <h2 className="text-[20px] font-semibold">Shapes</h2>
+          {/* <h2 className="text-[20px] font-semibold">Shapes</h2> */}
           <ul className="list-none mt-6">
             {tools.map((tool, index) => (
               <li
