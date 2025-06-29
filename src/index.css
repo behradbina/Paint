@@ -23,15 +23,11 @@ i {
   height: 100%;
 }
 
-
-/* ✅ Portrait-specific tweaks (for all screen sizes) */
 @media screen and (orientation: landscape) {
   body {
     background-color: #fff;
   }
 }
-
-/* ✅ Landscape warning only for mobile devices (phones & small tablets) */
 @media screen and (orientation: portrait){
   body::before {
     content: "Please rotate your device to landscape mode.";
