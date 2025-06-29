@@ -27,14 +27,21 @@ function App() {
 
 
   useEffect(() => {
-  const hasReloaded = sessionStorage.getItem('hasReloadedLandscape');
-  const isLandscape = window.matchMedia("(orientation: landscape)").matches;
+    const hasReloaded = sessionStorage.getItem('hasReloadedLandscape');
 
-  if (isLandscape && !hasReloaded) {
-    sessionStorage.setItem('hasReloadedLandscape', 'true');
-    window.location.reload();
-  }
-},  []);
+    const handleOrientationChange = () => {
+      const isLandscape = window.matchMedia("(orientation: landscape)").matches;
+
+      if (isLandscape && !hasReloaded) {
+        sessionStorage.setItem('hasReloadedLandscape', 'true');
+        window.location.reload();
+      }
+    };
+    window.addEventListener('orientationchange', handleOrientationChange);
+    return () => {
+      window.removeEventListener('orientationchange', handleOrientationChange);
+    };
+  }, []);
 
 
   useEffect(() => {
