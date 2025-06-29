@@ -32,7 +32,7 @@ function App() {
     const handleOrientationChange = () => {
       const isLandscape = window.matchMedia("(orientation: landscape)").matches;
 
-      if (isLandscape && !hasReloaded) {
+      if (!isLandscape && !hasReloaded) {
         sessionStorage.setItem('hasReloadedLandscape', 'true');
         window.location.reload();
       }
