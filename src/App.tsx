@@ -17,12 +17,15 @@ function App() {
   const [color, setColor] = useState<string>("#000");
   const [opacity, setOpacity] = useState<number>(1); // NEW
   const [isDrawing, setIsDrawing] = useState<boolean>(false);
-  const [range, setRange] = useState<string>("5");
+  const [brushSize, setBrushSize] = useState("5");
+  const [eraserSize, setEraserSize] = useState("10");
   const [selectTool, setSelectTool] = useState<string>("brush");
   const [actions, setActions] = useState<any[]>([]);
   const [currentPoints, setCurrentPoints] = useState<PointEvent[]>([]);
   const { canvas, ctx, snapShot } = useDrawVariables();
-  const { drawCircle, drawLine, drawRectangle, drawEraser, drawTriangle } = useDrawShapes(ctx, color, startPoint, range);
+  const currentSize = selectTool === "eraser" ? eraserSize : brushSize;
+  const { drawCircle, drawLine, drawRectangle, drawEraser, drawTriangle } = useDrawShapes(ctx, color, startPoint, currentSize);
+
 
 
 
@@ -172,7 +175,7 @@ function App() {
           : `draw${selectTool.charAt(0).toUpperCase() + selectTool.slice(1)}`,
       color,
       opacity,
-      line_width: parseInt(range),
+      line_width: parseInt(currentSize),
       timestamp_start: startTimestamp,
       timestamp_end: Date.now(),
       pressure: endPoint.pressure,
@@ -248,18 +251,37 @@ function App() {
             ))}
           </ul>
 
-          {/* Size slider */}
+          {/* Brush or Eraser Size slider (dynamic) */}
           <div className="size mt-4">
-            <label className="block mb-2 text-gray-700 font-medium">Brush Size: {range}</label>
-            <input
-              type="range"
-              min="1"
-              max="100"
-              value={range}
-              className="range-slider"
-              onChange={(e) => setRange(e.target.value)}
-            />
+            {selectTool === "brush" && (
+              <>
+                <label className="block mb-2 text-gray-700 font-medium">Brush Size: {brushSize}</label>
+                <input
+                  type="range"
+                  min="1"
+                  max="100"
+                  value={brushSize}
+                  className="range-slider"
+                  onChange={(e) => setBrushSize(e.target.value)}
+                />
+              </>
+            )}
+
+            {selectTool === "eraser" && (
+              <>
+                <label className="block mb-2 text-gray-700 font-medium">Eraser Size: {eraserSize}</label>
+                <input
+                  type="range"
+                  min="1"
+                  max="100"
+                  value={eraserSize}
+                  className="range-slider"
+                  onChange={(e) => setEraserSize(e.target.value)}
+                />
+              </>
+            )}
           </div>
+
 
           {/* Opacity slider */}
           <div className="opacity-slider mt-4">
