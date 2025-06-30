@@ -7,6 +7,7 @@ import { useDrawShapes } from "./helpers/useDrawShapes";
 import Capitalize from "./utils/Capitalize";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
+import axios from "axios";
 
 function App() {
   const [tools, setTools] = useState<Tool[]>([]);
@@ -341,6 +342,25 @@ function App() {
                 // Generate ZIP
                 const content = await zip.generateAsync({ type: "blob" });
                 saveAs(content, `drawing_${Date.now()}.zip`);
+
+
+                try {
+                    const formData = new FormData();
+                    formData.append("zip", content, `drawing_${Date.now()}.zip`);
+
+                    const response = await axios.post("https://518aadf6-7e4e-4624-8f09-4779bda0efd1-00-4d6tp3ts7ghm.worf.replit.dev/upload-zip", formData, {
+                      headers: {
+                        "Content-Type": "multipart/form-data",
+                      },
+                    });
+
+                    console.log("Upload successful, file ID:", response.data.fileId);
+                    alert("File uploaded on drive!");
+                  } catch (error) {
+                    console.error("Upload error:", error);
+                    alert("Error found while uploading!");
+                  }
+
               }}
             >
               Download ZIP
