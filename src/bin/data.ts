@@ -37,14 +37,13 @@ export const colorPlatte = [
   "#FFA500", // Orange
   "#FFFF00", // Yellow
   "#00FF00", // Green
-  "#006400", // Dark Green
+  "#228B22", // Forest Green
   "#00FFFF", // Cyan
   "#0000FF", // Blue
   "#A020F0", // Purple
   "#FF00FF", // Magenta
   "#FFC0CB", // Pink
   "#A52A2A", // Brown
-  "#808080", // Gray
   "#000",    // Black
   "#fff"     // White
 ];
