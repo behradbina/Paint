@@ -254,7 +254,7 @@ function App() {
 
           {/* Brush or Eraser Size slider (dynamic) */}
           <div className="size mt-4">
-            {selectTool === "brush" && (
+            {selectTool !== "eraser" && (
               <>
                 <label className="block mb-2 text-gray-700 font-medium">Brush Size: {brushSize}</label>
                 <input
@@ -299,7 +299,7 @@ function App() {
           </div>
 
           {/* Color palette */}
-          <div className="color-plate mt-4">
+          { selectTool !== "eraser" &&  (<div className="color-plate mt-4">
             <div className="text-center flex items-center gap-5 mb-4">
               <div className="border-[#4A98F7] border-solid border-2 p-1 rounded-[50%] cursor-pointer">
                 <p
@@ -320,7 +320,7 @@ function App() {
                 );
               })}
             </ul>
-          </div>
+          </div>) }
 
           <div className="mt-5">
             <button
