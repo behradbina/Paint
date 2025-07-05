@@ -14,7 +14,7 @@
 }
 
 .toolIcon.active svg path {
-  fill: #764abc;
+  fill: rgb(118 74 188 / var(--tw-bg-opacity));
 }
 
 i {

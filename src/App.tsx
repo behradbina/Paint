@@ -244,7 +244,7 @@ function App() {
                 />
                 <span
                   className="text-[20px] text-gray-600 group-hover:text-[#764abc]"
-                  style={Capitalize(selectTool) === tool.name ? { color: "#764abc" } : {}}
+                  style={Capitalize(selectTool) === tool.name ? { color: "rgb(118 74 188 / var(--tw-bg-opacity))", fontWeight:"bolder"} : {}}
                 >
                   {tool.name}
                 </span>
