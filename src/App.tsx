@@ -16,7 +16,7 @@ function App() {
   const [colorPlatte, setColorPlatte] = useState<string[]>([]);
   const [cursorStyle, setCursorStyle] = useState<string>("/tools/brush.svg");
   const [color, setColor] = useState<string>("#000");
-  const [opacity, setOpacity] = useState<number>(1); // NEW
+  const [opacity, setOpacity] = useState<number>(1);
   const [isDrawing, setIsDrawing] = useState<boolean>(false);
   const [brushSize, setBrushSize] = useState("5");
   const [eraserSize, setEraserSize] = useState("10");
@@ -25,28 +25,36 @@ function App() {
   const [currentPoints, setCurrentPoints] = useState<PointEvent[]>([]);
   const { canvas, ctx, snapShot } = useDrawVariables();
   const currentSize = selectTool === "eraser" ? eraserSize : brushSize;
-  const { drawCircle, drawLine, drawRectangle, drawEraser, drawTriangle } = useDrawShapes(ctx, color, startPoint, currentSize);
+  const { drawCircle, drawLine, drawRectangle, drawEraser, drawTriangle } =
+    useDrawShapes(ctx, color, startPoint, currentSize);
 
+  // 📌 گرفتن مختصات دقیق روی هر دستگاه
+  const getCanvasCoords = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!canvas.current) return { x: 0, y: 0 };
+    const rect = canvas.current.getBoundingClientRect();
+    const scaleX = canvas.current.width / rect.width;
+    const scaleY = canvas.current.height / rect.height;
 
-
+    return {
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY,
+    };
+  };
 
   useEffect(() => {
-    const hasReloaded = sessionStorage.getItem('hasReloadedLandscape');
-
+    const hasReloaded = sessionStorage.getItem("hasReloadedLandscape");
     const handleOrientationChange = () => {
       const isLandscape = window.matchMedia("(orientation: landscape)").matches;
-
       if (!isLandscape && !hasReloaded) {
-        sessionStorage.setItem('hasReloadedLandscape', 'true');
+        sessionStorage.setItem("hasReloadedLandscape", "true");
         window.location.reload();
       }
     };
-    window.addEventListener('orientationchange', handleOrientationChange);
+    window.addEventListener("orientationchange", handleOrientationChange);
     return () => {
-      window.removeEventListener('orientationchange', handleOrientationChange);
+      window.removeEventListener("orientationchange", handleOrientationChange);
     };
   }, []);
-
 
   useEffect(() => {
     setTools(tool);
@@ -56,12 +64,21 @@ function App() {
   useEffect(() => {
     if (!canvas) return;
     ctx.current = canvas.current?.getContext("2d");
+    if (ctx.current) {
+      ctx.current.lineJoin = "round"; // 📌 براش نرم
+      ctx.current.lineCap = "round";
+    }
   }, [canvas, ctx]);
 
+  // 📌 پشتیبانی از HiDPI / Retina بدون ctx.scale
   useLayoutEffect(() => {
     if (canvas.current) {
-      canvas.current.width = canvas.current.clientWidth;
-      canvas.current.height = canvas.current.clientHeight;
+      const ratio = window.devicePixelRatio || 1;
+      const width = canvas.current.clientWidth;
+      const height = canvas.current.clientHeight;
+
+      canvas.current.width = width * ratio;
+      canvas.current.height = height * ratio;
     }
   }, [canvas]);
 
@@ -78,15 +95,20 @@ function App() {
 
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     e.preventDefault();
+    (e.target as HTMLCanvasElement).setPointerCapture(e.pointerId); // 📌 برای روان بودن
     setIsDrawing(true);
+
     if (!ctx.current || !canvas.current) return;
 
     ctx.current.beginPath();
-    snapShot.current = ctx.current.getImageData(0, 0, canvas.current.width, canvas.current.height);
+    snapShot.current = ctx.current.getImageData(
+      0,
+      0,
+      canvas.current.width,
+      canvas.current.height
+    );
 
-    const rect = canvas.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const { x, y } = getCanvasCoords(e);
 
     const point: PointEvent = {
       x,
@@ -104,14 +126,13 @@ function App() {
 
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     e.preventDefault();
-    if (!isDrawing || !ctx.current || !canvas.current || !snapShot.current) return;
+    if (!isDrawing || !ctx.current || !canvas.current || !snapShot.current)
+      return;
 
     ctx.current.putImageData(snapShot.current, 0, 0);
-    ctx.current.globalAlpha = opacity; // Apply opacity
+    ctx.current.globalAlpha = opacity;
 
-    const rect = canvas.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const { x, y } = getCanvasCoords(e);
 
     const point: PointEvent = {
       x,
@@ -148,12 +169,11 @@ function App() {
 
   const onPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
     e.preventDefault();
+    (e.target as HTMLCanvasElement).releasePointerCapture(e.pointerId);
     setIsDrawing(false);
     if (!startPoint || !canvas.current || !ctx.current) return;
 
-    const rect = canvas.current.getBoundingClientRect();
-    const endX = e.clientX - rect.left;
-    const endY = e.clientY - rect.top;
+    const { x: endX, y: endY } = getCanvasCoords(e);
     const endPoint: PointEvent = {
       x: endX,
       y: endY,
@@ -164,7 +184,7 @@ function App() {
       timestamp: Date.now(),
     };
 
-    ctx.current.globalAlpha = 1; // Reset opacity
+    ctx.current.globalAlpha = 1;
 
     let shapeMeta: any = {
       order: actions.length + 1,
@@ -172,8 +192,8 @@ function App() {
         selectTool === "brush"
           ? "drawLine"
           : selectTool === "eraser"
-          ? "drawEraser"
-          : `draw${selectTool.charAt(0).toUpperCase() + selectTool.slice(1)}`,
+            ? "drawEraser"
+            : `draw${selectTool.charAt(0).toUpperCase() + selectTool.slice(1)}`,
       color,
       opacity,
       line_width: parseInt(currentSize),
@@ -204,7 +224,8 @@ function App() {
         break;
       case "circle":
         const radius = Math.sqrt(
-          Math.pow(startPoint.x - endPoint.x, 2) + Math.pow(startPoint.y - endPoint.y, 2)
+          Math.pow(startPoint.x - endPoint.x, 2) +
+          Math.pow(startPoint.y - endPoint.y, 2)
         );
         shapeMeta.center = startPoint;
         shapeMeta.radius = radius;
@@ -222,15 +243,10 @@ function App() {
     setColor(e);
   };
 
-  // const onClearCanvas = () => {
-  //   if (canvas.current) ctx.current?.clearRect(0, 0, canvas.current.width, canvas.current.height);
-  // }; 
-
   return (
     <>
       <div className="h-screen bg-[#F5F5F5] flex items-center ">
         <div className="toolbar w-[20%] px-5 h-full bg-white">
-          {/* <h2 className="text-[20px] font-semibold">Shapes</h2> */}
           <ul className="list-none mt-6">
             {tools.map((tool, index) => (
               <li
@@ -240,11 +256,20 @@ function App() {
               >
                 <i
                   dangerouslySetInnerHTML={{ __html: tool.icon }}
-                  className={`toolIcon ${Capitalize(selectTool) === tool.name ? "active" : ""}`}
+                  className={`toolIcon ${Capitalize(selectTool) === tool.name ? "active" : ""
+                    }`}
                 />
                 <span
                   className="text-[20px] text-gray-600 group-hover:text-[#764abc]"
-                  style={Capitalize(selectTool) === tool.name ? { color: "rgb(118 74 188 / var(--tw-bg-opacity))", fontWeight:"bolder"} : {}}
+                  style={
+                    Capitalize(selectTool) === tool.name
+                      ? {
+                        color:
+                          "rgb(118 74 188 / var(--tw-bg-opacity))",
+                        fontWeight: "bolder",
+                      }
+                      : {}
+                  }
                 >
                   {tool.name}
                 </span>
@@ -252,11 +277,13 @@ function App() {
             ))}
           </ul>
 
-          {/* Brush or Eraser Size slider (dynamic) */}
+          {/* Brush/Eraser Size */}
           <div className="size mt-4">
             {selectTool !== "eraser" && (
               <>
-                <label className="block mb-2 text-gray-700 font-medium">Brush Size: {brushSize}</label>
+                <label className="block mb-2 text-gray-700 font-medium">
+                  Brush Size: {brushSize}
+                </label>
                 <input
                   type="range"
                   min="1"
@@ -270,7 +297,9 @@ function App() {
 
             {selectTool === "eraser" && (
               <>
-                <label className="block mb-2 text-gray-700 font-medium">Eraser Size: {eraserSize}</label>
+                <label className="block mb-2 text-gray-700 font-medium">
+                  Eraser Size: {eraserSize}
+                </label>
                 <input
                   type="range"
                   min="1"
@@ -283,10 +312,11 @@ function App() {
             )}
           </div>
 
-
-          {/* Opacity slider */}
+          {/* Opacity */}
           <div className="opacity-slider mt-4">
-            <label className="block mb-2 text-gray-700 font-medium">Opacity: {(opacity * 100).toFixed(0)}%</label>
+            <label className="block mb-2 text-gray-700 font-medium">
+              Opacity: {(opacity * 100).toFixed(0)}%
+            </label>
             <input
               type="range"
               min="0.1"
@@ -298,29 +328,31 @@ function App() {
             />
           </div>
 
-          {/* Color palette */}
-          { selectTool !== "eraser" &&  (<div className="color-plate mt-4">
-            <div className="text-center flex items-center gap-5 mb-4">
-              <div className="border-[#4A98F7] border-solid border-2 p-1 rounded-[50%] cursor-pointer">
-                <p
-                  className="rounded-[50%] border border-solid w-7 h-7"
-                  style={{ backgroundColor: color }}
-                ></p>
-              </div>
-            </div>
-            <ul className="list-none flex gap-1 flex-wrap">
-              {colorPlatte.map((color, index) => {
-                return (
-                  <li
-                    className="rounded-[50%] border-[#adadad] border border-solid w-5 h-5 cursor-pointer"
-                    key={index}
+          {/* Color Palette */}
+          {selectTool !== "eraser" && (
+            <div className="color-plate mt-4">
+              <div className="text-center flex items-center gap-5 mb-4">
+                <div className="border-[#4A98F7] border-solid border-2 p-1 rounded-[50%] cursor-pointer">
+                  <p
+                    className="rounded-[50%] border border-solid w-7 h-7"
                     style={{ backgroundColor: color }}
-                    onClick={() => onSelectColor(color)}
-                  />
-                );
-              })}
-            </ul>
-          </div>) }
+                  ></p>
+                </div>
+              </div>
+              <ul className="list-none flex gap-1 flex-wrap">
+                {colorPlatte.map((color, index) => {
+                  return (
+                    <li
+                      className="rounded-[50%] border-[#adadad] border border-solid w-5 h-5 cursor-pointer"
+                      key={index}
+                      style={{ backgroundColor: color }}
+                      onClick={() => onSelectColor(color)}
+                    />
+                  );
+                })}
+              </ul>
+            </div>
+          )}
 
           <div className="mt-5">
             <button
@@ -330,37 +362,36 @@ function App() {
 
                 const zip = new JSZip();
 
-                // Add image
                 const imageData = canvas.current.toDataURL("image/png");
                 const imgBase64 = imageData.split(",")[1];
                 zip.file("drawing.png", imgBase64, { base64: true });
 
-                // Add metadata
                 const metadata = JSON.stringify(actions, null, 2);
                 zip.file("drawing_metadata.json", metadata);
 
-                // Generate ZIP
                 const content = await zip.generateAsync({ type: "blob" });
                 saveAs(content, `drawing_${Date.now()}.zip`);
 
-
                 try {
-                    const formData = new FormData();
-                    formData.append("zip", content, `drawing_${Date.now()}.zip`);
+                  const formData = new FormData();
+                  formData.append("zip", content, `drawing_${Date.now()}.zip`);
 
-                    const response = await axios.post("https://518aadf6-7e4e-4624-8f09-4779bda0efd1-00-4d6tp3ts7ghm.worf.replit.dev/upload-zip", formData, {
+                  const response = await axios.post(
+                    "https://518aadf6-7e4e-4624-8f09-4779bda0efd1-00-4d6tp3ts7ghm.worf.replit.dev/upload-zip",
+                    formData,
+                    {
                       headers: {
                         "Content-Type": "multipart/form-data",
                       },
-                    });
+                    }
+                  );
 
-                    console.log("Upload successful, file ID:", response.data.fileId);
-                    alert("File uploaded on drive!");
-                  } catch (error) {
-                    console.error("Upload error:", error);
-                    alert("Error found while uploading!");
-                  }
-
+                  console.log("Upload successful, file ID:", response.data.fileId);
+                  alert("File uploaded on drive!");
+                } catch (error) {
+                  console.error("Upload error:", error);
+                  alert("Error found while uploading!");
+                }
               }}
             >
               Download ZIP
@@ -368,7 +399,7 @@ function App() {
           </div>
         </div>
 
-        {/* Canvas Area */}
+        {/* Canvas */}
         <div className="canvas-container w-[90%] h-[95%] bg-white shadow-lg mx-5 rounded-lg">
           <canvas
             className="w-full h-full touch-none"
@@ -376,7 +407,10 @@ function App() {
             onPointerDown={onPointerDown}
             onPointerUp={onPointerUp}
             onPointerMove={onPointerMove}
-            style={{ cursor: cursorStyle ? `url(${cursorStyle}),auto` : "default" }}
+            style={{
+              cursor: cursorStyle ? `url(${cursorStyle}) 0 32, auto` : "default",
+            }}
+
           ></canvas>
         </div>
       </div>
