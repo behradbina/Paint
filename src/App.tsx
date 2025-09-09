@@ -15,7 +15,11 @@ function App() {
   const [startPoint, setStartPoint] = useState<PointEvent | undefined>();
   const [colorPlatte, setColorPlatte] = useState<string[]>([]);
   const [cursorStyle, setCursorStyle] = useState<string>("/tools/brush.svg");
-  const [color, setColor] = useState<string>("#000");
+
+  // 🎨 رنگ‌ها جدا
+  const [brushColor, setBrushColor] = useState<string>("#000");
+  const [bucketColor, setBucketColor] = useState<string>("#000");
+
   const [opacity, setOpacity] = useState<number>(1);
   const [isDrawing, setIsDrawing] = useState<boolean>(false);
   const [brushSize, setBrushSize] = useState("5");
@@ -25,10 +29,13 @@ function App() {
   const [currentPoints, setCurrentPoints] = useState<PointEvent[]>([]);
   const { canvas, ctx, snapShot } = useDrawVariables();
   const currentSize = selectTool === "eraser" ? eraserSize : brushSize;
-  const { drawCircle, drawLine, drawRectangle, drawEraser, drawTriangle } =
-    useDrawShapes(ctx, color, startPoint, currentSize);
 
-  // 📌 گرفتن مختصات دقیق روی هر دستگاه
+  // 🎨 رنگ فعال
+  const activeColor = selectTool === "bucket" ? bucketColor : brushColor;
+
+  const { drawCircle, drawLine, drawRectangle, drawEraser, drawTriangle } =
+    useDrawShapes(ctx, activeColor, startPoint, currentSize);
+
   const getCanvasCoords = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!canvas.current) return { x: 0, y: 0 };
     const rect = canvas.current.getBoundingClientRect();
@@ -65,18 +72,16 @@ function App() {
     if (!canvas) return;
     ctx.current = canvas.current?.getContext("2d");
     if (ctx.current) {
-      ctx.current.lineJoin = "round"; // 📌 براش نرم
+      ctx.current.lineJoin = "round";
       ctx.current.lineCap = "round";
     }
   }, [canvas, ctx]);
 
-  // 📌 پشتیبانی از HiDPI / Retina بدون ctx.scale
   useLayoutEffect(() => {
     if (canvas.current) {
       const ratio = window.devicePixelRatio || 1;
       const width = canvas.current.clientWidth;
       const height = canvas.current.clientHeight;
-
       canvas.current.width = width * ratio;
       canvas.current.height = height * ratio;
     }
@@ -88,18 +93,118 @@ function App() {
       setCursorStyle("/tools/brush.svg");
     } else if (name.toLowerCase() === "eraser") {
       setCursorStyle("/eraser.svg");
+    } else if (name.toLowerCase() === "bucket") {
+      setCursorStyle("/bucket.svg");
     } else {
       setCursorStyle("");
     }
   };
 
+  const hexToRgba = (hex: string, alpha = 255) => {
+    const bigint = parseInt(hex.slice(1), 16);
+    const r = (bigint >> 16) & 255;
+    const g = (bigint >> 8) & 255;
+    const b = bigint & 255;
+    return [r, g, b, alpha];
+  };
+
+  const colorsMatch = (a: number[], b: number[]) => {
+    return a[0] === b[0] && a[1] === b[1] && a[2] === b[2] && a[3] === b[3];
+  };
+
+  const floodFill = (
+    ctx: CanvasRenderingContext2D,
+    startX: number,
+    startY: number,
+    fillColor: number[]
+  ): { filledPixels: number; filledPercent: number } => {
+    const canvasWidth = ctx.canvas.width;
+    const canvasHeight = ctx.canvas.height;
+    const imageData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
+    const data = imageData.data;
+
+    const startPos = (startY * canvasWidth + startX) * 4;
+    const startColor = [
+      data[startPos],
+      data[startPos + 1],
+      data[startPos + 2],
+      data[startPos + 3],
+    ];
+
+    if (colorsMatch(startColor, fillColor))
+      return { filledPixels: 0, filledPercent: 0 };
+
+    const stack: [number, number][] = [[startX, startY]];
+    let filledPixels = 0;
+
+    while (stack.length > 0) {
+      const [x, y] = stack.pop()!;
+      const pos = (y * canvasWidth + x) * 4;
+
+      const currentColor = [
+        data[pos],
+        data[pos + 1],
+        data[pos + 2],
+        data[pos + 3],
+      ];
+
+      if (colorsMatch(currentColor, startColor)) {
+        data[pos] = fillColor[0];
+        data[pos + 1] = fillColor[1];
+        data[pos + 2] = fillColor[2];
+        data[pos + 3] = fillColor[3];
+        filledPixels++;
+
+        if (x + 1 < canvasWidth) stack.push([x + 1, y]);
+        if (x - 1 >= 0) stack.push([x - 1, y]);
+        if (y + 1 < canvasHeight) stack.push([x, y + 1]);
+        if (y - 1 >= 0) stack.push([x, y - 1]);
+      }
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+
+    const totalPixels = canvasWidth * canvasHeight;
+    const filledPercent = (filledPixels / totalPixels) * 100;
+
+    return { filledPixels, filledPercent };
+  };
+
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     e.preventDefault();
-    (e.target as HTMLCanvasElement).setPointerCapture(e.pointerId); // 📌 برای روان بودن
-    setIsDrawing(true);
+    (e.target as HTMLCanvasElement).setPointerCapture(e.pointerId);
 
     if (!ctx.current || !canvas.current) return;
 
+    // 🪣 Bucket
+    if (selectTool === "bucket") {
+      const { x, y } = getCanvasCoords(e);
+      const fillColor = hexToRgba(bucketColor, Math.round(opacity * 255));
+      const { filledPixels, filledPercent } = floodFill(
+        ctx.current,
+        Math.floor(x),
+        Math.floor(y),
+        fillColor
+      );
+
+      setActions((prev) => [
+        ...prev,
+        {
+          order: actions.length + 1,
+          action_type: "fill",
+          color: bucketColor,
+          opacity,
+          point: { x, y },
+          area_pixels: filledPixels,
+          area_percent: filledPercent.toFixed(2),
+          timestamp: Date.now(),
+        },
+      ]);
+      return;
+    }
+
+    // ✏️ Drawing tools
+    setIsDrawing(true);
     ctx.current.beginPath();
     snapShot.current = ctx.current.getImageData(
       0,
@@ -109,7 +214,6 @@ function App() {
     );
 
     const { x, y } = getCanvasCoords(e);
-
     const point: PointEvent = {
       x,
       y,
@@ -133,7 +237,6 @@ function App() {
     ctx.current.globalAlpha = opacity;
 
     const { x, y } = getCanvasCoords(e);
-
     const point: PointEvent = {
       x,
       y,
@@ -159,8 +262,6 @@ function App() {
         break;
       case "eraser":
         drawEraser(point);
-        break;
-      default:
         break;
     }
 
@@ -192,9 +293,9 @@ function App() {
         selectTool === "brush"
           ? "drawLine"
           : selectTool === "eraser"
-            ? "drawEraser"
-            : `draw${selectTool.charAt(0).toUpperCase() + selectTool.slice(1)}`,
-      color,
+          ? "drawEraser"
+          : `draw${selectTool.charAt(0).toUpperCase() + selectTool.slice(1)}`,
+      color: activeColor,
       opacity,
       line_width: parseInt(currentSize),
       timestamp_start: startTimestamp,
@@ -225,22 +326,27 @@ function App() {
       case "circle":
         const radius = Math.sqrt(
           Math.pow(startPoint.x - endPoint.x, 2) +
-          Math.pow(startPoint.y - endPoint.y, 2)
+            Math.pow(startPoint.y - endPoint.y, 2)
         );
         shapeMeta.center = startPoint;
         shapeMeta.radius = radius;
         break;
-      default:
-        break;
     }
 
-    setActions((prev) => [...prev, shapeMeta]);
+    if (selectTool !== "bucket") {
+      setActions((prev) => [...prev, shapeMeta]);
+    }
     setCurrentPoints([]);
     setStartTimestamp(null);
   };
 
-  const onSelectColor = (e: string) => {
-    setColor(e);
+  // 🎨 انتخاب رنگ
+  const onSelectColor = (c: string) => {
+    if (selectTool === "bucket") {
+      setBucketColor(c);
+    } else {
+      setBrushColor(c);
+    }
   };
 
   return (
@@ -256,18 +362,18 @@ function App() {
               >
                 <i
                   dangerouslySetInnerHTML={{ __html: tool.icon }}
-                  className={`toolIcon ${Capitalize(selectTool) === tool.name ? "active" : ""
-                    }`}
+                  className={`toolIcon ${
+                    Capitalize(selectTool) === tool.name ? "active" : ""
+                  }`}
                 />
                 <span
                   className="text-[20px] text-gray-600 group-hover:text-[#764abc]"
                   style={
                     Capitalize(selectTool) === tool.name
                       ? {
-                        color:
-                          "rgb(118 74 188 / var(--tw-bg-opacity))",
-                        fontWeight: "bolder",
-                      }
+                          color: "rgb(118 74 188 / var(--tw-bg-opacity))",
+                          fontWeight: "bolder",
+                        }
                       : {}
                   }
                 >
@@ -279,7 +385,7 @@ function App() {
 
           {/* Brush/Eraser Size */}
           <div className="size mt-4">
-            {selectTool !== "eraser" && (
+            {selectTool !== "eraser" && selectTool !== "bucket" && (
               <>
                 <label className="block mb-2 text-gray-700 font-medium">
                   Brush Size: {brushSize}
@@ -335,25 +441,24 @@ function App() {
                 <div className="border-[#4A98F7] border-solid border-2 p-1 rounded-[50%] cursor-pointer">
                   <p
                     className="rounded-[50%] border border-solid w-7 h-7"
-                    style={{ backgroundColor: color }}
+                    style={{ backgroundColor: activeColor }}
                   ></p>
                 </div>
               </div>
               <ul className="list-none flex gap-1 flex-wrap">
-                {colorPlatte.map((color, index) => {
-                  return (
-                    <li
-                      className="rounded-[50%] border-[#adadad] border border-solid w-5 h-5 cursor-pointer"
-                      key={index}
-                      style={{ backgroundColor: color }}
-                      onClick={() => onSelectColor(color)}
-                    />
-                  );
-                })}
+                {colorPlatte.map((c, index) => (
+                  <li
+                    className="rounded-[50%] border-[#adadad] border border-solid w-5 h-5 cursor-pointer"
+                    key={index}
+                    style={{ backgroundColor: c }}
+                    onClick={() => onSelectColor(c)}
+                  />
+                ))}
               </ul>
             </div>
           )}
 
+          {/* Download/Upload */}
           <div className="mt-5">
             <button
               className="px-4 py-3 mt-2 rounded-lg bg-[#764abc] text-white border-[#764abc] border-2 border-solid"
@@ -386,7 +491,10 @@ function App() {
                     }
                   );
 
-                  console.log("Upload successful, file ID:", response.data.fileId);
+                  console.log(
+                    "Upload successful, file ID:",
+                    response.data.fileId
+                  );
                   alert("File uploaded on drive!");
                 } catch (error) {
                   console.error("Upload error:", error);
@@ -410,7 +518,6 @@ function App() {
             style={{
               cursor: cursorStyle ? `url(${cursorStyle}) 0 32, auto` : "default",
             }}
-
           ></canvas>
         </div>
       </div>
