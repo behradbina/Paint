@@ -101,29 +101,49 @@ function App() {
   };
 
   const hexToRgba = (hex: string, alpha = 255) => {
-    const bigint = parseInt(hex.slice(1), 16);
+    if (!hex || hex[0] !== "#") return [0, 0, 0, alpha];
+    const bigint = parseInt(hex.slice(1).length === 3
+      ? hex.slice(1).split('').map(ch => ch + ch).join('')
+      : hex.slice(1), 16);
     const r = (bigint >> 16) & 255;
     const g = (bigint >> 8) & 255;
     const b = bigint & 255;
     return [r, g, b, alpha];
   };
 
-  const colorsMatch = (a: number[], b: number[]) => {
-    return a[0] === b[0] && a[1] === b[1] && a[2] === b[2] && a[3] === b[3];
-  };
-
-  const floodFill = (
+  // ---------------------------
+  // Professional Scanline Flood Fill
+  // ---------------------------
+  /**
+   * scanlineFloodFill
+   * - ctx: CanvasRenderingContext2D
+   * - startX, startY: pixel coordinates (integers)
+   * - fillColor: [r,g,b,a] (0..255)
+   * - tolerance: number (0..255) per-channel tolerance; if >0 it will fill colors that are "close"
+   *
+   * Returns: { filledPixels: number, filledPercent: number }
+   */
+  const scanlineFloodFill = (
     ctx: CanvasRenderingContext2D,
     startX: number,
     startY: number,
-    fillColor: number[]
+    fillColor: number[],
+    tolerance = 0
   ): { filledPixels: number; filledPercent: number } => {
     const canvasWidth = ctx.canvas.width;
     const canvasHeight = ctx.canvas.height;
-    const imageData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
-    const data = imageData.data;
 
-    const startPos = (startY * canvasWidth + startX) * 4;
+    // clamp start coords
+    startX = Math.max(0, Math.min(canvasWidth - 1, startX));
+    startY = Math.max(0, Math.min(canvasHeight - 1, startY));
+
+    const imageData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
+    const data = imageData.data; // Uint8ClampedArray
+    const pixelCount = canvasWidth * canvasHeight;
+
+    const idx = (x: number, y: number) => (y * canvasWidth + x) * 4;
+
+    const startPos = idx(startX, startY);
     const startColor = [
       data[startPos],
       data[startPos + 1],
@@ -131,61 +151,123 @@ function App() {
       data[startPos + 3],
     ];
 
-    if (colorsMatch(startColor, fillColor))
-      return { filledPixels: 0, filledPercent: 0 };
+    // if startColor is already equal to fillColor (within tolerance), nothing to do
+    const colorsEqualWithinTolerance = (c1: number[], c2: number[]) => {
+      for (let i = 0; i < 4; i++) {
+        if (Math.abs(c1[i] - c2[i]) > tolerance) return false;
+      }
+      return true;
+    };
 
-    const stack: [number, number][] = [[startX, startY]];
+    if (colorsEqualWithinTolerance(startColor, fillColor)) {
+      return { filledPixels: 0, filledPercent: 0 };
+    }
+
+    // helper: check if a pixel matches startColor within tolerance
+    const matchStart = (x: number, y: number) => {
+      const p = idx(x, y);
+      for (let i = 0; i < 4; i++) {
+        if (Math.abs(data[p + i] - startColor[i]) > tolerance) return false;
+      }
+      return true;
+    };
+
+    // stack of segments: { y, xLeft, xRight, dir } dir unused but kept for clarity
+    const stack: { x: number; y: number }[] = [];
+    stack.push({ x: startX, y: startY });
+
     let filledPixels = 0;
 
-    while (stack.length > 0) {
-      const [x, y] = stack.pop()!;
-      const pos = (y * canvasWidth + x) * 4;
+    while (stack.length) {
+      const { x: xSeed, y: ySeed } = stack.pop()!;
+      let x = xSeed;
 
-      const currentColor = [
-        data[pos],
-        data[pos + 1],
-        data[pos + 2],
-        data[pos + 3],
-      ];
+      // move left until boundary
+      while (x >= 0 && matchStart(x, ySeed)) x--;
+      x++;
+      let spanUp = false;
+      let spanDown = false;
 
-      if (colorsMatch(currentColor, startColor)) {
-        data[pos] = fillColor[0];
-        data[pos + 1] = fillColor[1];
-        data[pos + 2] = fillColor[2];
-        data[pos + 3] = fillColor[3];
+      // move right, fill, and check neighbors
+      for (; x < canvasWidth && matchStart(x, ySeed); x++) {
+        const p = idx(x, ySeed);
+        data[p] = fillColor[0];
+        data[p + 1] = fillColor[1];
+        data[p + 2] = fillColor[2];
+        data[p + 3] = fillColor[3];
         filledPixels++;
 
-        if (x + 1 < canvasWidth) stack.push([x + 1, y]);
-        if (x - 1 >= 0) stack.push([x - 1, y]);
-        if (y + 1 < canvasHeight) stack.push([x, y + 1]);
-        if (y - 1 >= 0) stack.push([x, y - 1]);
+        // up
+        if (ySeed > 0) {
+          if (matchStart(x, ySeed - 1)) {
+            if (!spanUp) {
+              stack.push({ x: x, y: ySeed - 1 });
+              spanUp = true;
+            }
+          } else {
+            spanUp = false;
+          }
+        }
+        // down
+        if (ySeed < canvasHeight - 1) {
+          if (matchStart(x, ySeed + 1)) {
+            if (!spanDown) {
+              stack.push({ x: x, y: ySeed + 1 });
+              spanDown = true;
+            }
+          } else {
+            spanDown = false;
+          }
+        }
       }
     }
 
     ctx.putImageData(imageData, 0, 0);
 
-    const totalPixels = canvasWidth * canvasHeight;
-    const filledPercent = (filledPixels / totalPixels) * 100;
-
+    const filledPercent = (filledPixels / pixelCount) * 100;
     return { filledPixels, filledPercent };
   };
 
+  // ---------------------------
+  // Pointer handlers
+  // ---------------------------
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     (e.target as HTMLCanvasElement).setPointerCapture(e.pointerId);
 
     if (!ctx.current || !canvas.current) return;
 
-    // 🪣 Bucket
+    // 🪣 Bucket (improved)
     if (selectTool === "bucket") {
-      const { x, y } = getCanvasCoords(e);
-      const fillColor = hexToRgba(bucketColor, Math.round(opacity * 255));
-      const { filledPixels, filledPercent } = floodFill(
-        ctx.current,
-        Math.floor(x),
-        Math.floor(y),
-        fillColor
+      const coords = getCanvasCoords(e);
+      // ensure integer pixel coords
+      const x = Math.floor(coords.x);
+      const y = Math.floor(coords.y);
+
+      // alpha blending: map opacity (0..1) to 0..255
+      const a = Math.round(opacity * 255);
+      const fillColor = hexToRgba(bucketColor, a);
+
+      // tolerance: small tolerance helps with anti-aliased edges (try 10 by default)
+      const tolerance = 10; // you can expose this as a UI control later
+
+      // take a snapshot for undo
+      snapShot.current = ctx.current.getImageData(
+        0,
+        0,
+        canvas.current.width,
+        canvas.current.height
       );
+
+      const start = Date.now();
+      const { filledPixels, filledPercent } = scanlineFloodFill(
+        ctx.current,
+        x,
+        y,
+        fillColor,
+        tolerance
+      );
+      const durationMs = Date.now() - start;
 
       setActions((prev) => [
         ...prev,
@@ -196,8 +278,10 @@ function App() {
           opacity,
           point: { x, y },
           area_pixels: filledPixels,
-          area_percent: filledPercent.toFixed(2),
+          area_percent: Number(filledPercent.toFixed(2)),
           timestamp: Date.now(),
+          elapsed_ms: durationMs,
+          tolerance,
         },
       ]);
       return;
