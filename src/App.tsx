@@ -16,7 +16,6 @@ function App() {
   const [colorPlatte, setColorPlatte] = useState<string[]>([]);
   const [cursorStyle, setCursorStyle] = useState<string>("/tools/brush.svg");
 
-  // 🎨 رنگ‌ها جدا
   const [brushColor, setBrushColor] = useState<string>("#000");
   const [bucketColor, setBucketColor] = useState<string>("#000");
 
@@ -30,7 +29,6 @@ function App() {
   const { canvas, ctx, snapShot } = useDrawVariables();
   const currentSize = selectTool === "eraser" ? eraserSize : brushSize;
 
-  // 🎨 رنگ فعال
   const activeColor = selectTool === "bucket" ? bucketColor : brushColor;
 
   const { drawCircle, drawLine, drawRectangle, drawEraser, drawTriangle } =
@@ -41,7 +39,6 @@ function App() {
     const rect = canvas.current.getBoundingClientRect();
     const scaleX = canvas.current.width / rect.width;
     const scaleY = canvas.current.height / rect.height;
-
     return {
       x: (e.clientX - rect.left) * scaleX,
       y: (e.clientY - rect.top) * scaleY,
@@ -89,22 +86,24 @@ function App() {
 
   const onSelectTool = (name: string) => {
     setSelectTool(name.toLowerCase());
-    if (name.toLowerCase() === "brush") {
-      setCursorStyle("/tools/brush.svg");
-    } else if (name.toLowerCase() === "eraser") {
-      setCursorStyle("/eraser.svg");
-    } else if (name.toLowerCase() === "bucket") {
-      setCursorStyle("/bucket.svg");
-    } else {
-      setCursorStyle("");
-    }
+    if (name.toLowerCase() === "brush") setCursorStyle("/tools/brush.svg");
+    else if (name.toLowerCase() === "eraser") setCursorStyle("/eraser.svg");
+    else if (name.toLowerCase() === "bucket") setCursorStyle("/bucket.svg");
+    else setCursorStyle("");
   };
 
   const hexToRgba = (hex: string, alpha = 255) => {
     if (!hex || hex[0] !== "#") return [0, 0, 0, alpha];
-    const bigint = parseInt(hex.slice(1).length === 3
-      ? hex.slice(1).split('').map(ch => ch + ch).join('')
-      : hex.slice(1), 16);
+    const bigint = parseInt(
+      hex.slice(1).length === 3
+        ? hex
+            .slice(1)
+            .split("")
+            .map((ch) => ch + ch)
+            .join("")
+        : hex.slice(1),
+      16
+    );
     const r = (bigint >> 16) & 255;
     const g = (bigint >> 8) & 255;
     const b = bigint & 255;
@@ -114,33 +113,22 @@ function App() {
   // ---------------------------
   // Professional Scanline Flood Fill
   // ---------------------------
-  /**
-   * scanlineFloodFill
-   * - ctx: CanvasRenderingContext2D
-   * - startX, startY: pixel coordinates (integers)
-   * - fillColor: [r,g,b,a] (0..255)
-   * - tolerance: number (0..255) per-channel tolerance; if >0 it will fill colors that are "close"
-   *
-   * Returns: { filledPixels: number, filledPercent: number }
-   */
   const scanlineFloodFill = (
     ctx: CanvasRenderingContext2D,
     startX: number,
     startY: number,
     fillColor: number[],
-    tolerance = 0
+    tolerance = 20
   ): { filledPixels: number; filledPercent: number } => {
     const canvasWidth = ctx.canvas.width;
     const canvasHeight = ctx.canvas.height;
 
-    // clamp start coords
     startX = Math.max(0, Math.min(canvasWidth - 1, startX));
     startY = Math.max(0, Math.min(canvasHeight - 1, startY));
 
     const imageData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
-    const data = imageData.data; // Uint8ClampedArray
+    const data = imageData.data;
     const pixelCount = canvasWidth * canvasHeight;
-
     const idx = (x: number, y: number) => (y * canvasWidth + x) * 4;
 
     const startPos = idx(startX, startY);
@@ -151,44 +139,32 @@ function App() {
       data[startPos + 3],
     ];
 
-    // if startColor is already equal to fillColor (within tolerance), nothing to do
     const colorsEqualWithinTolerance = (c1: number[], c2: number[]) => {
-      for (let i = 0; i < 4; i++) {
-        if (Math.abs(c1[i] - c2[i]) > tolerance) return false;
-      }
+      for (let i = 0; i < 4; i++) if (Math.abs(c1[i] - c2[i]) > tolerance) return false;
       return true;
     };
-
-    if (colorsEqualWithinTolerance(startColor, fillColor)) {
+    if (colorsEqualWithinTolerance(startColor, fillColor))
       return { filledPixels: 0, filledPercent: 0 };
-    }
 
-    // helper: check if a pixel matches startColor within tolerance
     const matchStart = (x: number, y: number) => {
       const p = idx(x, y);
-      for (let i = 0; i < 4; i++) {
-        if (Math.abs(data[p + i] - startColor[i]) > tolerance) return false;
-      }
+      for (let i = 0; i < 4; i++) if (Math.abs(data[p + i] - startColor[i]) > tolerance) return false;
       return true;
     };
 
-    // stack of segments: { y, xLeft, xRight, dir } dir unused but kept for clarity
     const stack: { x: number; y: number }[] = [];
     stack.push({ x: startX, y: startY });
 
     let filledPixels = 0;
-
     while (stack.length) {
       const { x: xSeed, y: ySeed } = stack.pop()!;
       let x = xSeed;
 
-      // move left until boundary
       while (x >= 0 && matchStart(x, ySeed)) x--;
       x++;
       let spanUp = false;
       let spanDown = false;
 
-      // move right, fill, and check neighbors
       for (; x < canvasWidth && matchStart(x, ySeed); x++) {
         const p = idx(x, ySeed);
         data[p] = fillColor[0];
@@ -197,61 +173,93 @@ function App() {
         data[p + 3] = fillColor[3];
         filledPixels++;
 
-        // up
         if (ySeed > 0) {
           if (matchStart(x, ySeed - 1)) {
             if (!spanUp) {
               stack.push({ x: x, y: ySeed - 1 });
               spanUp = true;
             }
-          } else {
-            spanUp = false;
-          }
+          } else spanUp = false;
         }
-        // down
         if (ySeed < canvasHeight - 1) {
           if (matchStart(x, ySeed + 1)) {
             if (!spanDown) {
               stack.push({ x: x, y: ySeed + 1 });
               spanDown = true;
             }
-          } else {
-            spanDown = false;
-          }
+          } else spanDown = false;
         }
       }
     }
 
     ctx.putImageData(imageData, 0, 0);
-
     const filledPercent = (filledPixels / pixelCount) * 100;
     return { filledPixels, filledPercent };
   };
 
+  // Dilate pass برای گوشه‌ها
+  const dilateFill = (
+    ctx: CanvasRenderingContext2D,
+    imageData: ImageData,
+    fillColor: number[],
+    passes = 2
+  ) => {
+    const { width, height, data } = imageData;
+    const idx = (x: number, y: number) => (y * width + x) * 4;
+
+    for (let pass = 0; pass < passes; pass++) {
+      const copy = new Uint8ClampedArray(data);
+
+      for (let y = 1; y < height - 1; y++) {
+        for (let x = 1; x < width - 1; x++) {
+          const p = idx(x, y);
+          const isFilled =
+            data[p] === fillColor[0] &&
+            data[p + 1] === fillColor[1] &&
+            data[p + 2] === fillColor[2] &&
+            data[p + 3] === fillColor[3];
+
+          if (!isFilled) {
+            const neighbors = [idx(x - 1, y), idx(x + 1, y), idx(x, y - 1), idx(x, y + 1)];
+            for (let n of neighbors) {
+              if (
+                data[n] === fillColor[0] &&
+                data[n + 1] === fillColor[1] &&
+                data[n + 2] === fillColor[2] &&
+                data[n + 3] === fillColor[3]
+              ) {
+                copy[p] = fillColor[0];
+                copy[p + 1] = fillColor[1];
+                copy[p + 2] = fillColor[2];
+                copy[p + 3] = fillColor[3];
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      data.set(copy);
+    }
+    ctx.putImageData(imageData, 0, 0);
+  };
+
   // ---------------------------
-  // Pointer handlers
+  // Pointer Handlers
   // ---------------------------
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     e.preventDefault();
     (e.target as HTMLCanvasElement).setPointerCapture(e.pointerId);
-
     if (!ctx.current || !canvas.current) return;
 
-    // 🪣 Bucket (improved)
     if (selectTool === "bucket") {
       const coords = getCanvasCoords(e);
-      // ensure integer pixel coords
       const x = Math.floor(coords.x);
       const y = Math.floor(coords.y);
-
-      // alpha blending: map opacity (0..1) to 0..255
       const a = Math.round(opacity * 255);
       const fillColor = hexToRgba(bucketColor, a);
+      const tolerance = 20;
 
-      // tolerance: small tolerance helps with anti-aliased edges (try 10 by default)
-      const tolerance = 10; // you can expose this as a UI control later
-
-      // take a snapshot for undo
       snapShot.current = ctx.current.getImageData(
         0,
         0,
@@ -267,7 +275,13 @@ function App() {
         fillColor,
         tolerance
       );
-      const durationMs = Date.now() - start;
+
+      dilateFill(
+        ctx.current,
+        ctx.current.getImageData(0, 0, canvas.current.width, canvas.current.height),
+        fillColor,
+        2
+      );
 
       setActions((prev) => [
         ...prev,
@@ -280,14 +294,14 @@ function App() {
           area_pixels: filledPixels,
           area_percent: Number(filledPercent.toFixed(2)),
           timestamp: Date.now(),
-          elapsed_ms: durationMs,
+          elapsed_ms: Date.now() - start,
           tolerance,
         },
       ]);
       return;
     }
 
-    // ✏️ Drawing tools
+    // Drawing tools
     setIsDrawing(true);
     ctx.current.beginPath();
     snapShot.current = ctx.current.getImageData(
@@ -314,8 +328,7 @@ function App() {
 
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     e.preventDefault();
-    if (!isDrawing || !ctx.current || !canvas.current || !snapShot.current)
-      return;
+    if (!isDrawing || !ctx.current || !canvas.current || !snapShot.current) return;
 
     ctx.current.putImageData(snapShot.current, 0, 0);
     ctx.current.globalAlpha = opacity;
@@ -417,20 +430,14 @@ function App() {
         break;
     }
 
-    if (selectTool !== "bucket") {
-      setActions((prev) => [...prev, shapeMeta]);
-    }
+    if (selectTool !== "bucket") setActions((prev) => [...prev, shapeMeta]);
     setCurrentPoints([]);
     setStartTimestamp(null);
   };
 
-  // 🎨 انتخاب رنگ
   const onSelectColor = (c: string) => {
-    if (selectTool === "bucket") {
-      setBucketColor(c);
-    } else {
-      setBrushColor(c);
-    }
+    if (selectTool === "bucket") setBucketColor(c);
+    else setBrushColor(c);
   };
 
   return (
@@ -467,7 +474,6 @@ function App() {
             ))}
           </ul>
 
-          {/* Brush/Eraser Size */}
           <div className="size mt-4">
             {selectTool !== "eraser" && selectTool !== "bucket" && (
               <>
@@ -502,7 +508,6 @@ function App() {
             )}
           </div>
 
-          {/* Opacity */}
           <div className="opacity-slider mt-4">
             <label className="block mb-2 text-gray-700 font-medium">
               Opacity: {(opacity * 100).toFixed(0)}%
@@ -518,7 +523,6 @@ function App() {
             />
           </div>
 
-          {/* Color Palette */}
           {selectTool !== "eraser" && (
             <div className="color-plate mt-4">
               <div className="text-center flex items-center gap-5 mb-4">
@@ -542,7 +546,6 @@ function App() {
             </div>
           )}
 
-          {/* Download/Upload */}
           <div className="mt-5">
             <button
               className="px-4 py-3 mt-2 rounded-lg bg-[#764abc] text-white border-[#764abc] border-2 border-solid"
@@ -550,7 +553,6 @@ function App() {
                 if (!canvas.current) return;
 
                 const zip = new JSZip();
-
                 const imageData = canvas.current.toDataURL("image/png");
                 const imgBase64 = imageData.split(",")[1];
                 zip.file("drawing.png", imgBase64, { base64: true });
@@ -564,21 +566,14 @@ function App() {
                 try {
                   const formData = new FormData();
                   formData.append("zip", content, `drawing_${Date.now()}.zip`);
-
                   const response = await axios.post(
                     "https://518aadf6-7e4e-4624-8f09-4779bda0efd1-00-4d6tp3ts7ghm.worf.replit.dev/upload-zip",
                     formData,
                     {
-                      headers: {
-                        "Content-Type": "multipart/form-data",
-                      },
+                      headers: { "Content-Type": "multipart/form-data" },
                     }
                   );
-
-                  console.log(
-                    "Upload successful, file ID:",
-                    response.data.fileId
-                  );
+                  console.log("Upload successful, file ID:", response.data.fileId);
                   alert("File uploaded on drive!");
                 } catch (error) {
                   console.error("Upload error:", error);
@@ -591,7 +586,6 @@ function App() {
           </div>
         </div>
 
-        {/* Canvas */}
         <div className="canvas-container w-[90%] h-[95%] bg-white shadow-lg mx-5 rounded-lg">
           <canvas
             className="w-full h-full touch-none"
