@@ -29,6 +29,10 @@ function App() {
   const { canvas, ctx, snapShot } = useDrawVariables();
   const currentSize = selectTool === "eraser" ? eraserSize : brushSize;
 
+  // --- undo/redo stacks ---
+  const [undoStack, setUndoStack] = useState<ImageData[]>([]);
+  const [redoStack, setRedoStack] = useState<ImageData[]>([]);
+
   const activeColor = selectTool === "bucket" ? bucketColor : brushColor;
 
   const { drawCircle, drawLine, drawRectangle, drawEraser, drawTriangle } =
@@ -65,23 +69,35 @@ function App() {
     setColorPlatte(colorsList);
   }, []);
 
-  useEffect(() => {
-    if (!canvas) return;
-    ctx.current = canvas.current?.getContext("2d");
+  // Setup canvas size, context and push initial snapshot into undoStack
+  useLayoutEffect(() => {
+    if (!canvas.current) return;
+    const ratio = window.devicePixelRatio || 1;
+    const width = canvas.current.clientWidth;
+    const height = canvas.current.clientHeight;
+    canvas.current.width = width * ratio;
+    canvas.current.height = height * ratio;
+
+    ctx.current = canvas.current.getContext("2d");
     if (ctx.current) {
       ctx.current.lineJoin = "round";
       ctx.current.lineCap = "round";
-    }
-  }, [canvas, ctx]);
 
-  useLayoutEffect(() => {
-    if (canvas.current) {
-      const ratio = window.devicePixelRatio || 1;
-      const width = canvas.current.clientWidth;
-      const height = canvas.current.clientHeight;
-      canvas.current.width = width * ratio;
-      canvas.current.height = height * ratio;
+      // push initial (empty) snapshot only if undoStack is empty
+      try {
+        const initial = ctx.current.getImageData(
+          0,
+          0,
+          canvas.current.width,
+          canvas.current.height
+        );
+        setUndoStack((prev) => (prev.length === 0 ? [initial] : prev));
+      } catch (err) {
+        // getImageData might fail in some contexts — ignore safely
+        console.warn("Couldn't capture initial canvas snapshot:", err);
+      }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canvas]);
 
   const onSelectTool = (name: string) => {
@@ -97,10 +113,10 @@ function App() {
     const bigint = parseInt(
       hex.slice(1).length === 3
         ? hex
-            .slice(1)
-            .split("")
-            .map((ch) => ch + ch)
-            .join("")
+          .slice(1)
+          .split("")
+          .map((ch) => ch + ch)
+          .join("")
         : hex.slice(1),
       16
     );
@@ -111,7 +127,7 @@ function App() {
   };
 
   // ---------------------------
-  // Professional Scanline Flood Fill
+  // Flood Fill & Dilate
   // ---------------------------
   const scanlineFloodFill = (
     ctx: CanvasRenderingContext2D,
@@ -140,7 +156,8 @@ function App() {
     ];
 
     const colorsEqualWithinTolerance = (c1: number[], c2: number[]) => {
-      for (let i = 0; i < 4; i++) if (Math.abs(c1[i] - c2[i]) > tolerance) return false;
+      for (let i = 0; i < 4; i++)
+        if (Math.abs(c1[i] - c2[i]) > tolerance) return false;
       return true;
     };
     if (colorsEqualWithinTolerance(startColor, fillColor))
@@ -148,7 +165,8 @@ function App() {
 
     const matchStart = (x: number, y: number) => {
       const p = idx(x, y);
-      for (let i = 0; i < 4; i++) if (Math.abs(data[p + i] - startColor[i]) > tolerance) return false;
+      for (let i = 0; i < 4; i++)
+        if (Math.abs(data[p + i] - startColor[i]) > tolerance) return false;
       return true;
     };
 
@@ -197,7 +215,6 @@ function App() {
     return { filledPixels, filledPercent };
   };
 
-  // Dilate pass برای گوشه‌ها
   const dilateFill = (
     ctx: CanvasRenderingContext2D,
     imageData: ImageData,
@@ -220,7 +237,12 @@ function App() {
             data[p + 3] === fillColor[3];
 
           if (!isFilled) {
-            const neighbors = [idx(x - 1, y), idx(x + 1, y), idx(x, y - 1), idx(x, y + 1)];
+            const neighbors = [
+              idx(x - 1, y),
+              idx(x + 1, y),
+              idx(x, y - 1),
+              idx(x, y + 1),
+            ];
             for (let n of neighbors) {
               if (
                 data[n] === fillColor[0] &&
@@ -245,6 +267,94 @@ function App() {
   };
 
   // ---------------------------
+  // Undo/Redo helpers
+  // ---------------------------
+  const saveState = () => {
+    if (!ctx.current || !canvas.current) return;
+    try {
+      const snapshot = ctx.current.getImageData(
+        0,
+        0,
+        canvas.current.width,
+        canvas.current.height
+      );
+      setUndoStack((prev) => [...prev, snapshot]);
+      // new action invalidates redo history
+      setRedoStack([]);
+    } catch (err) {
+      console.warn("saveState failed:", err);
+    }
+  };
+
+  const handleUndo = () => {
+    if (!ctx.current || !canvas.current) return;
+    if (undoStack.length <= 1) return;
+
+    const currentState = undoStack[undoStack.length - 1];
+    const previousState = undoStack[undoStack.length - 2];
+
+    setUndoStack((prev) => prev.slice(0, -1));
+    setRedoStack((prev) => [...prev, currentState]);
+
+    try {
+      ctx.current.putImageData(previousState, 0, 0);
+    } catch (err) {
+      console.warn("handleUndo putImageData failed:", err);
+    }
+
+    // پیدا کردن آخرین اکشن واقعی
+    const lastRealAction = actions
+      .slice()
+      .reverse()
+      .find((a) => !["undo", "redo"].includes(a.action_type));
+
+    setActions((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        order: prev.length + 1,
+        action_type: "undo",
+        target_action_id: lastRealAction?.id || null,
+        timestamp: Date.now(),
+      },
+    ]);
+  };
+
+
+  const handleRedo = () => {
+    if (!ctx.current || !canvas.current) return;
+    if (redoStack.length === 0) return;
+
+    const nextState = redoStack[redoStack.length - 1];
+
+    setRedoStack((prev) => prev.slice(0, -1));
+    setUndoStack((prev) => [...prev, nextState]);
+
+    try {
+      ctx.current.putImageData(nextState, 0, 0);
+    } catch (err) {
+      console.warn("handleRedo putImageData failed:", err);
+    }
+
+    // پیدا کردن آخرین undo برای وصل شدن
+    const lastUndo = actions
+      .slice()
+      .reverse()
+      .find((a) => a.action_type === "undo");
+
+    setActions((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        order: prev.length + 1,
+        action_type: "redo",
+        target_action_id: lastUndo?.target_action_id || null,
+        timestamp: Date.now(),
+      },
+    ]);
+  };
+
+  // ---------------------------
   // Pointer Handlers
   // ---------------------------
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -252,6 +362,7 @@ function App() {
     (e.target as HTMLCanvasElement).setPointerCapture(e.pointerId);
     if (!ctx.current || !canvas.current) return;
 
+    // For bucket: perform fill immediately on down
     if (selectTool === "bucket") {
       const coords = getCanvasCoords(e);
       const x = Math.floor(coords.x);
@@ -260,13 +371,8 @@ function App() {
       const fillColor = hexToRgba(bucketColor, a);
       const tolerance = 20;
 
-      snapShot.current = ctx.current.getImageData(
-        0,
-        0,
-        canvas.current.width,
-        canvas.current.height
-      );
-
+      // snapshot BEFORE filling? We will save result AFTER fill (we already have initial in undoStack),
+      // but to be consistent we capture resulting state after fill via saveState()
       const start = Date.now();
       const { filledPixels, filledPercent } = scanlineFloodFill(
         ctx.current,
@@ -283,10 +389,14 @@ function App() {
         2
       );
 
+      // register action (use prev length to compute order inside callback to avoid stale value)
+      const actionId = crypto.randomUUID();
+
       setActions((prev) => [
         ...prev,
         {
-          order: actions.length + 1,
+          id: actionId,
+          order: prev.length + 1,
           action_type: "fill",
           color: bucketColor,
           opacity,
@@ -298,10 +408,14 @@ function App() {
           tolerance,
         },
       ]);
+
+
+      // save state after fill (push resulting image)
+      saveState();
       return;
     }
 
-    // Drawing tools
+    // Drawing tools: begin action (we'll save resulting state on pointerUp)
     setIsDrawing(true);
     ctx.current.beginPath();
     snapShot.current = ctx.current.getImageData(
@@ -328,7 +442,8 @@ function App() {
 
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     e.preventDefault();
-    if (!isDrawing || !ctx.current || !canvas.current || !snapShot.current) return;
+    if (!isDrawing || !ctx.current || !canvas.current || !snapShot.current)
+      return;
 
     ctx.current.putImageData(snapShot.current, 0, 0);
     ctx.current.globalAlpha = opacity;
@@ -390,8 +505,8 @@ function App() {
         selectTool === "brush"
           ? "drawLine"
           : selectTool === "eraser"
-          ? "drawEraser"
-          : `draw${selectTool.charAt(0).toUpperCase() + selectTool.slice(1)}`,
+            ? "drawEraser"
+            : `draw${selectTool.charAt(0).toUpperCase() + selectTool.slice(1)}`,
       color: activeColor,
       opacity,
       line_width: parseInt(currentSize),
@@ -423,14 +538,22 @@ function App() {
       case "circle":
         const radius = Math.sqrt(
           Math.pow(startPoint.x - endPoint.x, 2) +
-            Math.pow(startPoint.y - endPoint.y, 2)
+          Math.pow(startPoint.y - endPoint.y, 2)
         );
         shapeMeta.center = startPoint;
         shapeMeta.radius = radius;
         break;
     }
 
-    if (selectTool !== "bucket") setActions((prev) => [...prev, shapeMeta]);
+    if (selectTool !== "bucket") {
+      // add action and save current canvas as new state in undo stack
+      const actionId = crypto.randomUUID();
+      shapeMeta.id = actionId;
+
+      setActions((prev) => [...prev, shapeMeta]);
+
+      saveState();
+    }
     setCurrentPoints([]);
     setStartTimestamp(null);
   };
@@ -453,18 +576,17 @@ function App() {
               >
                 <i
                   dangerouslySetInnerHTML={{ __html: tool.icon }}
-                  className={`toolIcon ${
-                    Capitalize(selectTool) === tool.name ? "active" : ""
-                  }`}
+                  className={`toolIcon ${Capitalize(selectTool) === tool.name ? "active" : ""
+                    }`}
                 />
                 <span
                   className="text-[20px] text-gray-600 group-hover:text-[#764abc]"
                   style={
                     Capitalize(selectTool) === tool.name
                       ? {
-                          color: "rgb(118 74 188 / var(--tw-bg-opacity))",
-                          fontWeight: "bolder",
-                        }
+                        color: "rgb(118 74 188 / var(--tw-bg-opacity))",
+                        fontWeight: "bolder",
+                      }
                       : {}
                   }
                 >
@@ -546,6 +668,22 @@ function App() {
             </div>
           )}
 
+          {/* Undo / Redo buttons */}
+          <div className="mt-5 flex gap-2">
+            <button
+              className="px-4 py-2 rounded-lg bg-gray-200 text-black border border-solid"
+              onClick={handleUndo}
+            >
+              Undo
+            </button>
+            <button
+              className="px-4 py-2 rounded-lg bg-gray-200 text-black border border-solid"
+              onClick={handleRedo}
+            >
+              Redo
+            </button>
+          </div>
+
           <div className="mt-5">
             <button
               className="px-4 py-3 mt-2 rounded-lg bg-[#764abc] text-white border-[#764abc] border-2 border-solid"
@@ -553,13 +691,38 @@ function App() {
                 if (!canvas.current) return;
 
                 const zip = new JSZip();
+
+                // ---- Save final image ----
                 const imageData = canvas.current.toDataURL("image/png");
                 const imgBase64 = imageData.split(",")[1];
                 zip.file("drawing.png", imgBase64, { base64: true });
 
+                // ---- Save actions metadata ----
                 const metadata = JSON.stringify(actions, null, 2);
                 zip.file("drawing_metadata.json", metadata);
 
+                // ---- Save history (undo/redo) ----
+                const serializeHistory = (stack: ImageData[]) => {
+                  if (!canvas.current) return [];
+                  const tempCanvas = document.createElement("canvas");
+                  const tempCtx = tempCanvas.getContext("2d")!;
+                  tempCanvas.width = canvas.current.width;
+                  tempCanvas.height = canvas.current.height;
+
+                  return stack.map((imgData) => {
+                    tempCtx.putImageData(imgData, 0, 0);
+                    return tempCanvas.toDataURL("image/png"); // Base64
+                  });
+                };
+
+                const history = {
+                  undoStack: serializeHistory(undoStack),
+                  redoStack: serializeHistory(redoStack),
+                };
+
+                zip.file("history.json", JSON.stringify(history, null, 2));
+
+                // ---- Generate ZIP ----
                 const content = await zip.generateAsync({ type: "blob" });
                 saveAs(content, `drawing_${Date.now()}.zip`);
 
@@ -580,6 +743,7 @@ function App() {
                   alert("Error found while uploading!");
                 }
               }}
+
             >
               Download ZIP
             </button>
