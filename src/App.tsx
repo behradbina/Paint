@@ -80,6 +80,9 @@ function App() {
 
     ctx.current = canvas.current.getContext("2d");
     if (ctx.current) {
+      ctx.current.fillStyle = "white";
+      ctx.current.fillRect(0, 0, canvas.current.width, canvas.current.height);
+
       ctx.current.lineJoin = "round";
       ctx.current.lineCap = "round";
 
@@ -134,7 +137,7 @@ function App() {
     startX: number,
     startY: number,
     fillColor: number[],
-    tolerance = 20
+    tolerance = 100
   ): { filledPixels: number; filledPercent: number } => {
     const canvasWidth = ctx.canvas.width;
     const canvasHeight = ctx.canvas.height;
@@ -215,56 +218,56 @@ function App() {
     return { filledPixels, filledPercent };
   };
 
-  const dilateFill = (
-    ctx: CanvasRenderingContext2D,
-    imageData: ImageData,
-    fillColor: number[],
-    passes = 2
-  ) => {
-    const { width, height, data } = imageData;
-    const idx = (x: number, y: number) => (y * width + x) * 4;
-
-    for (let pass = 0; pass < passes; pass++) {
-      const copy = new Uint8ClampedArray(data);
-
-      for (let y = 1; y < height - 1; y++) {
-        for (let x = 1; x < width - 1; x++) {
-          const p = idx(x, y);
-          const isFilled =
-            data[p] === fillColor[0] &&
-            data[p + 1] === fillColor[1] &&
-            data[p + 2] === fillColor[2] &&
-            data[p + 3] === fillColor[3];
-
-          if (!isFilled) {
-            const neighbors = [
-              idx(x - 1, y),
-              idx(x + 1, y),
-              idx(x, y - 1),
-              idx(x, y + 1),
-            ];
-            for (let n of neighbors) {
-              if (
-                data[n] === fillColor[0] &&
-                data[n + 1] === fillColor[1] &&
-                data[n + 2] === fillColor[2] &&
-                data[n + 3] === fillColor[3]
-              ) {
-                copy[p] = fillColor[0];
-                copy[p + 1] = fillColor[1];
-                copy[p + 2] = fillColor[2];
-                copy[p + 3] = fillColor[3];
-                break;
-              }
-            }
-          }
-        }
-      }
-
-      data.set(copy);
-    }
-    ctx.putImageData(imageData, 0, 0);
-  };
+  // const dilateFill = (
+  //   ctx: CanvasRenderingContext2D,
+  //   imageData: ImageData,
+  //   fillColor: number[],
+  //   passes = 2
+  // ) => {
+  //   const { width, height, data } = imageData;
+  //   const idx = (x: number, y: number) => (y * width + x) * 4;
+  //
+  //   for (let pass = 0; pass < passes; pass++) {
+  //     const copy = new Uint8ClampedArray(data);
+  //
+  //     for (let y = 1; y < height - 1; y++) {
+  //       for (let x = 1; x < width - 1; x++) {
+  //         const p = idx(x, y);
+  //         const isFilled =
+  //           data[p] === fillColor[0] &&
+  //           data[p + 1] === fillColor[1] &&
+  //           data[p + 2] === fillColor[2] &&
+  //           data[p + 3] === fillColor[3];
+  //
+  //         if (!isFilled) {
+  //           const neighbors = [
+  //             idx(x - 1, y),
+  //             idx(x + 1, y),
+  //             idx(x, y - 1),
+  //             idx(x, y + 1),
+  //           ];
+  //           for (let n of neighbors) {
+  //             if (
+  //               data[n] === fillColor[0] &&
+  //               data[n + 1] === fillColor[1] &&
+  //               data[n + 2] === fillColor[2] &&
+  //               data[n + 3] === fillColor[3]
+  //             ) {
+  //               copy[p] = fillColor[0];
+  //               copy[p + 1] = fillColor[1];
+  //               copy[p + 2] = fillColor[2];
+  //               copy[p + 3] = fillColor[3];
+  //               break;
+  //             }
+  //           }
+  //         }
+  //       }
+  //     }
+  //
+  //     data.set(copy);
+  //   }
+  //   ctx.putImageData(imageData, 0, 0);
+  // };
 
   // ---------------------------
   // Undo/Redo helpers
@@ -369,7 +372,7 @@ function App() {
       const y = Math.floor(coords.y);
       const a = Math.round(opacity * 255);
       const fillColor = hexToRgba(bucketColor, a);
-      const tolerance = 20;
+      const tolerance = 100;
 
       // snapshot BEFORE filling? We will save result AFTER fill (we already have initial in undoStack),
       // but to be consistent we capture resulting state after fill via saveState()
@@ -382,12 +385,15 @@ function App() {
         tolerance
       );
 
-      dilateFill(
-        ctx.current,
-        ctx.current.getImageData(0, 0, canvas.current.width, canvas.current.height),
-        fillColor,
-        2
-      );
+      // dilateFill(
+      //   ctx.current,
+      //   ctx.current.getImageData(0, 0, canvas.current.width, canvas.current.height),
+      //   fillColor,
+      //   2
+      // );
+
+      // save state after fill (push resulting image)
+      saveState();
 
       // register action (use prev length to compute order inside callback to avoid stale value)
       const actionId = crypto.randomUUID();
@@ -409,9 +415,6 @@ function App() {
         },
       ]);
 
-
-      // save state after fill (push resulting image)
-      saveState();
       return;
     }
 
@@ -702,18 +705,18 @@ function App() {
                 zip.file("drawing_metadata.json", metadata);
 
                 // ---- Save history (undo/redo) ----
-                const serializeHistory = (stack: ImageData[]) => {
-                  if (!canvas.current) return [];
-                  const tempCanvas = document.createElement("canvas");
-                  const tempCtx = tempCanvas.getContext("2d")!;
-                  tempCanvas.width = canvas.current.width;
-                  tempCanvas.height = canvas.current.height;
-
-                  return stack.map((imgData) => {
-                    tempCtx.putImageData(imgData, 0, 0);
-                    return tempCanvas.toDataURL("image/png"); // Base64
-                  });
-                };
+                // const serializeHistory = (stack: ImageData[]) => {
+                //   if (!canvas.current) return [];
+                //   const tempCanvas = document.createElement("canvas");
+                //   const tempCtx = tempCanvas.getContext("2d")!;
+                //   tempCanvas.width = canvas.current.width;
+                //   tempCanvas.height = canvas.current.height;
+                //
+                //   return stack.map((imgData) => {
+                //     tempCtx.putImageData(imgData, 0, 0);
+                //     return tempCanvas.toDataURL("image/png"); // Base64
+                //   });
+                // };
 
                 // const history = {
                 //   undoStack: serializeHistory(undoStack),
