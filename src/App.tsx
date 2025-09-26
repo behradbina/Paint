@@ -21,7 +21,7 @@ function App() {
 
   const [opacity, setOpacity] = useState<number>(1);
   const [isDrawing, setIsDrawing] = useState<boolean>(false);
-  const [brushSize, setBrushSize] = useState("5");
+  const [brushSize, setBrushSize] = useState("15");
   const [eraserSize, setEraserSize] = useState("10");
   const [selectTool, setSelectTool] = useState<string>("brush");
   const [actions, setActions] = useState<any[]>([]);
@@ -568,9 +568,9 @@ function App() {
 
   return (
     <>
-      <div className="h-screen bg-[#F5F5F5] flex items-center ">
-        <div className="toolbar w-[20%] px-5 h-full bg-white">
-          <ul className="list-none mt-6">
+      <div className="h-screen bg-[#F5F5F5] flex items-center">
+        <div className="toolbar w-[32%] lg:w-[20%] p-4 md:px-6 h-full bg-white">
+          <ul className="list-none">
             {tools.map((tool, index) => (
               <li
                 className="flex gap-4 my-2 group cursor-pointer items-center"
@@ -650,8 +650,9 @@ function App() {
 
           {selectTool !== "eraser" && (
             <div className="color-plate mt-4">
-              <div className="text-center flex items-center gap-5 mb-4">
-                <div className="border-[#4A98F7] border-solid border-2 p-1 rounded-[50%] cursor-pointer">
+              <div className="flex justify-between gap-5 mb-4">
+                Current Color:
+                <div className="border-[#4A98F7] border-solid border-2 p-1 rounded-[50%] cursor-pointer h-fit">
                   <p
                     className="rounded-[50%] border border-solid w-7 h-7"
                     style={{ backgroundColor: activeColor }}
