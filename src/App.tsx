@@ -715,12 +715,12 @@ function App() {
                   });
                 };
 
-                const history = {
-                  undoStack: serializeHistory(undoStack),
-                  redoStack: serializeHistory(redoStack),
-                };
+                // const history = {
+                //   undoStack: serializeHistory(undoStack),
+                //   redoStack: serializeHistory(redoStack),
+                // };
 
-                zip.file("history.json", JSON.stringify(history, null, 2));
+                // zip.file("history.json", JSON.stringify(history, null, 2));
 
                 // ---- Generate ZIP ----
                 const content = await zip.generateAsync({ type: "blob" });
