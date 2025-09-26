@@ -9,6 +9,25 @@ import JSZip from "jszip";
 import { saveAs } from "file-saver";
 import axios from "axios";
 
+declare global {
+  interface ScreenOrientation {
+    lock(
+      orientation: OrientationLockType
+    ): Promise<void>;
+    unlock(): void;
+  }
+
+  type OrientationLockType =
+    | "any"
+    | "natural"
+    | "landscape"
+    | "portrait"
+    | "portrait-primary"
+    | "portrait-secondary"
+    | "landscape-primary"
+    | "landscape-secondary";
+}
+
 function App() {
   const [tools, setTools] = useState<Tool[]>([]);
   const [startTimestamp, setStartTimestamp] = useState<number | null>(null);
@@ -49,24 +68,45 @@ function App() {
     };
   };
 
-  // useEffect(() => {
-  //   const hasReloaded = sessionStorage.getItem("hasReloadedLandscape");
-  //   const handleOrientationChange = () => {
-  //     const isLandscape = window.matchMedia("(orientation: landscape)").matches;
-  //     if (!isLandscape && !hasReloaded) {
-  //       sessionStorage.setItem("hasReloadedLandscape", "true");
-  //       window.location.reload();
-  //     }
-  //   };
-  //   window.addEventListener("orientationchange", handleOrientationChange);
-  //   return () => {
-  //     window.removeEventListener("orientationchange", handleOrientationChange);
-  //   };
-  // }, []);
+  useEffect(() => {
+    const hasReloaded = sessionStorage.getItem("hasReloadedLandscape");
+    const handleOrientationChange = () => {
+      const isLandscape = window.matchMedia("(orientation: landscape)").matches;
+      if (!isLandscape && !hasReloaded) {
+        sessionStorage.setItem("hasReloadedLandscape", "true");
+        window.location.reload();
+      }
+    };
+    window.addEventListener("orientationchange", handleOrientationChange);
+    return () => {
+      window.removeEventListener("orientationchange", handleOrientationChange);
+    };
+  }, []);
 
   useEffect(() => {
     setTools(tool);
     setColorPlatte(colorsList);
+  }, []);
+
+  useEffect(() => {
+    const lockOrientation = async () => {
+      try {
+        if (screen.orientation && typeof screen.orientation.lock === "function") {
+          await screen.orientation.lock("landscape");
+        }
+      } catch (error) {
+        console.error("Could not lock screen orientation:", error);
+      }
+    };
+
+    lockOrientation();
+
+    // The cleanup function will unlock the orientation when the component unmounts
+    return () => {
+      if (screen.orientation && typeof screen.orientation.unlock === "function") {
+        screen.orientation.unlock();
+      }
+    };
   }, []);
 
   // Setup canvas size, context and push initial snapshot into undoStack
@@ -218,57 +258,6 @@ function App() {
     return { filledPixels, filledPercent };
   };
 
-  // const dilateFill = (
-  //   ctx: CanvasRenderingContext2D,
-  //   imageData: ImageData,
-  //   fillColor: number[],
-  //   passes = 2
-  // ) => {
-  //   const { width, height, data } = imageData;
-  //   const idx = (x: number, y: number) => (y * width + x) * 4;
-  //
-  //   for (let pass = 0; pass < passes; pass++) {
-  //     const copy = new Uint8ClampedArray(data);
-  //
-  //     for (let y = 1; y < height - 1; y++) {
-  //       for (let x = 1; x < width - 1; x++) {
-  //         const p = idx(x, y);
-  //         const isFilled =
-  //           data[p] === fillColor[0] &&
-  //           data[p + 1] === fillColor[1] &&
-  //           data[p + 2] === fillColor[2] &&
-  //           data[p + 3] === fillColor[3];
-  //
-  //         if (!isFilled) {
-  //           const neighbors = [
-  //             idx(x - 1, y),
-  //             idx(x + 1, y),
-  //             idx(x, y - 1),
-  //             idx(x, y + 1),
-  //           ];
-  //           for (let n of neighbors) {
-  //             if (
-  //               data[n] === fillColor[0] &&
-  //               data[n + 1] === fillColor[1] &&
-  //               data[n + 2] === fillColor[2] &&
-  //               data[n + 3] === fillColor[3]
-  //             ) {
-  //               copy[p] = fillColor[0];
-  //               copy[p + 1] = fillColor[1];
-  //               copy[p + 2] = fillColor[2];
-  //               copy[p + 3] = fillColor[3];
-  //               break;
-  //             }
-  //           }
-  //         }
-  //       }
-  //     }
-  //
-  //     data.set(copy);
-  //   }
-  //   ctx.putImageData(imageData, 0, 0);
-  // };
-
   // ---------------------------
   // Undo/Redo helpers
   // ---------------------------
@@ -384,13 +373,6 @@ function App() {
         fillColor,
         tolerance
       );
-
-      // dilateFill(
-      //   ctx.current,
-      //   ctx.current.getImageData(0, 0, canvas.current.width, canvas.current.height),
-      //   fillColor,
-      //   2
-      // );
 
       // save state after fill (push resulting image)
       saveState();
