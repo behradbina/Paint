@@ -49,20 +49,20 @@ function App() {
     };
   };
 
-  useEffect(() => {
-    const hasReloaded = sessionStorage.getItem("hasReloadedLandscape");
-    const handleOrientationChange = () => {
-      const isLandscape = window.matchMedia("(orientation: landscape)").matches;
-      if (!isLandscape && !hasReloaded) {
-        sessionStorage.setItem("hasReloadedLandscape", "true");
-        window.location.reload();
-      }
-    };
-    window.addEventListener("orientationchange", handleOrientationChange);
-    return () => {
-      window.removeEventListener("orientationchange", handleOrientationChange);
-    };
-  }, []);
+  // useEffect(() => {
+  //   const hasReloaded = sessionStorage.getItem("hasReloadedLandscape");
+  //   const handleOrientationChange = () => {
+  //     const isLandscape = window.matchMedia("(orientation: landscape)").matches;
+  //     if (!isLandscape && !hasReloaded) {
+  //       sessionStorage.setItem("hasReloadedLandscape", "true");
+  //       window.location.reload();
+  //     }
+  //   };
+  //   window.addEventListener("orientationchange", handleOrientationChange);
+  //   return () => {
+  //     window.removeEventListener("orientationchange", handleOrientationChange);
+  //   };
+  // }, []);
 
   useEffect(() => {
     setTools(tool);
@@ -690,7 +690,7 @@ function App() {
 
           <div className="mt-5">
             <button
-              className="px-4 py-3 mt-2 rounded-lg bg-[#764abc] text-white border-[#764abc] border-2 border-solid"
+              className="px-4 py-3 my-2 rounded-lg bg-[#764abc] text-white border-[#764abc] border-2 border-solid"
               onClick={async () => {
                 if (!canvas.current) return;
 
